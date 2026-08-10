@@ -1,0 +1,196 @@
+version: "2"
+
+linters:
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - canonicalheader
+    - containedctx
+    - contextcheck
+    - copyloopvar
+    - cyclop
+    - decorder
+    - dogsled
+    - dupl
+    - dupword
+    - durationcheck
+    - errcheck
+    - errname
+    - errorlint
+    - exhaustive
+    - fatcontext
+    - forbidigo
+    - forcetypeassert
+    - funlen
+    - ginkgolinter
+    - gocheckcompilerdirectives
+    - gochecknoglobals
+    - gochecknoinits
+    - gochecksumtype
+    - gocognit
+    - goconst
+    - gocritic
+    - gocyclo
+    - godot
+    - godox
+    - goheader
+    - gomoddirectives
+    - gomodguard
+    - goprintffuncname
+    - gosec
+    - gosmopolitan
+    - govet
+    - grouper
+    - importas
+    - inamedparam
+    - ineffassign
+    - interfacebloat
+    - intrange
+    - ireturn
+    - lll
+    - loggercheck
+    - maintidx
+    - makezero
+    - mirror
+    - misspell
+    - mnd
+    - nakedret
+    - nestif
+    - nilerr
+    - nilnil
+    - nlreturn
+    - noctx
+    - nolintlint
+    - nonamedreturns
+    - nosprintfhostport
+    - paralleltest
+    - perfsprint
+    - prealloc
+    - predeclared
+    - promlinter
+    - protogetter
+    - reassign
+    - revive
+    - rowserrcheck
+    - sloglint
+    - spancheck
+    - sqlclosecheck
+    - staticcheck
+    - tagliatelle
+    - testifylint
+    - thelper
+    - tparallel
+    - unconvert
+    - unparam
+    - unused
+    - usestdlibvars
+    - wastedassign
+    - whitespace
+    - wrapcheck
+    - wsl_v5
+    - zerologlint
+
+  disable:
+    - tagalign
+    - err113
+    - varnamelen
+    - godox
+
+  settings:
+
+    lll:
+      line-length: 100
+
+    gosec:
+      severity: medium
+      confidence: medium
+
+    revive:
+      rules:
+        - name: package-comments
+          disabled: true
+
+    mnd:
+      ignored-numbers:
+        - "0"
+        - "1"
+        - "2"
+
+    tagliatelle:
+      case:
+        rules:
+          json: snake
+          yaml: snake
+          form: snake
+
+    depguard:
+      rules:
+
+        domain:
+          files:
+            - "internal/domain/**"
+          deny:
+            - pkg: "internal/application"
+            - pkg: "internal/interfaces"
+            - pkg: "internal/infrastructure"
+
+        application:
+          files:
+            - "internal/application/**"
+          deny:
+            - pkg: "internal/interfaces"
+
+        interfaces:
+          files:
+            - "internal/interfaces/**"
+          deny:
+            - pkg: "internal/infrastructure"
+
+        infrastructure:
+          files:
+            - "internal/infrastructure/**"
+          deny:
+            - pkg: "internal/interfaces"
+
+  exclusions:
+    rules:
+      - path: cmd/yoga/main.go
+        linters:
+          - gocyclo
+          - funlen
+          - lll
+
+      - path: .*_test\.go
+        linters:
+          - typecheck
+          - funlen
+          - gocyclo
+          - gochecknoglobals
+          - maintidx
+          - dupl
+
+      - path: internal/application/classes/service.go
+        linters:
+          - typecheck
+
+      - path: internal/domain/repositories/repositories.go
+        linters:
+          - interfacebloat
+
+      - path: assets/example/send_confirmation_email.go
+        linters:
+          - typecheck
+
+      - path: pkg/optional/optional.go
+        linters:
+          - ireturn
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+run:
+  timeout: 5m

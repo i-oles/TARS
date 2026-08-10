@@ -1,0 +1,24 @@
+{
+  "listenAddress": ":8080",
+  "readTimeout": "5s",
+  "writeTimeout": "10s",
+  "contextTimeout": "5s",
+  "logBusinessErrors": false,
+  "logConfig": false,
+  "authSecret": "",
+  "tasks" : {
+    "doctorReminder" : {
+        "interval" : "2h",
+    },
+  },
+  "sender": {
+    "host": "smtp.gmail.com",
+    "port": 587,
+    "login": "",
+    "password": "",
+    "signature": "Igor",
+  },
+  "domainAddr": "https://otojoga.art",
+  "baseNotifierTmplPath" : "internal/infrastructure/requester/templates/",
+  "mockEmailSender": false
+}
