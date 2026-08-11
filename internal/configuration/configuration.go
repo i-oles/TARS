@@ -43,6 +43,7 @@ type Sender struct {
 
 type Tasks struct {
 	DoctorReminder DoctorReminder
+	Interval       Duration
 }
 
 type DoctorReminder struct {
@@ -99,7 +100,7 @@ func GetConfig(cfgPath string) (*Configuration, error) {
 
 	if cfg.Sender.Login == "" || cfg.Sender.Password == "" {
 		return nil,
-			errors.New("provide envs for notifier")
+			errors.New("provide envs for sender")
 	}
 
 	return cfg, nil

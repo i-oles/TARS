@@ -10,8 +10,8 @@
     "interval" : "10s",
   },
   "tasks": {
-    "doctor_reminder": {
-        "interval": "10s",
+    "doctorReminder": {
+        "interval": "30s",
     },
   },
   "sender": {

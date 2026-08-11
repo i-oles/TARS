@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"time"
 
@@ -57,6 +58,8 @@ func (t *DoctorReminder) Run(ctx context.Context) error {
 	}
 
 	if task.LastRunAt != nil && time.Since(*task.LastRunAt) < t.interval {
+		slog.Info("not enought time passed since lat run... ", slog.String("name", task.Name))
+
 		return nil
 	}
 
@@ -80,6 +83,13 @@ func (t *DoctorReminder) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("could not request task %v: %w", t.Name(), err)
 	}
+
+	_, err = t.repoTasks.Update(ctx, task.ID, map[string]any{"last_run_at": time.Now()})
+	if err != nil {
+		return fmt.Errorf("could not update task %v: %w", t.Name(), err)
+	}
+
+	slog.Info("task finished", slog.String("name", task.Name))
 
 	return nil
 }

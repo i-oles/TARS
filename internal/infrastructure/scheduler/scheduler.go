@@ -29,11 +29,15 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	defer ticker.Stop()
 
 	for {
+		slog.Info("----------------------")
 		slog.Info("scheduler started...")
 
 		if err := s.runTasks(ctx); err != nil {
 			return fmt.Errorf("failed to run tasks: %w", err)
 		}
+
+		slog.Info("scheduler finished, sleep...")
+		slog.Info("----------------------")
 
 		select {
 		case <-ctx.Done():
@@ -48,8 +52,6 @@ func (s *Scheduler) runTasks(ctx context.Context) error {
 		if err := task.Run(ctx); err != nil {
 			return fmt.Errorf("failed to run task: %s: %w", task.Name(), err)
 		}
-
-		slog.Info("task run", slog.String("name", task.Name()))
 	}
 
 	return nil
