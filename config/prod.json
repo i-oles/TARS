@@ -1,0 +1,27 @@
+{
+  "listenAddress": ":8080",
+  "readTimeout": "5s",
+  "writeTimeout": "10s",
+  "contextTimeout": "5s",
+  "logBusinessErrors": false,
+  "logConfig": false,
+  "authSecret": "",
+  "scheduler" : {
+    "interval" : "3h",
+  },
+  "tasks": {
+    "doctorReminder": {
+        "interval": "5h",
+    },
+  },
+  "sender": {
+    "host": "smtp.gmail.com",
+    "port": 587,
+    "login": "",
+    "password": "",
+    "signature": "Igor Oleś",
+  },
+  "domainAddr": "https://localhost:8080",
+  "baseRequestTmplPath" : "internal/infrastructure/requester/templates/",
+  "mockEmailSender": false
+}
