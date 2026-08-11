@@ -2,9 +2,10 @@ package sqlite
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"time"
 
+	"main/internal/domain/errs/api"
 	"main/internal/domain/models"
 
 	"gorm.io/gorm"
@@ -21,6 +22,23 @@ func NewTasksRepo(db *gorm.DB) *tasksRepo {
 	}
 }
 
+func (r *tasksRepo) GetByName(ctx context.Context, name string) (models.Task, error) {
+	var task SQLTask
+
+	if err := r.db.WithContext(ctx).
+		Where("name = ?", name).
+		First(&task).
+		Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.Task{}, api.ErrTaskNotFound
+		}
+
+		return models.Task{}, fmt.Errorf("could get task: %w", err)
+	}
+
+	return task.ToDomain(), nil
+}
+
 func (r *tasksRepo) Insert(ctx context.Context, name string) (models.Task, error) {
 	task := SQLTask{
 		Name: name,
@@ -28,6 +46,10 @@ func (r *tasksRepo) Insert(ctx context.Context, name string) (models.Task, error
 
 	if err := r.db.WithContext(ctx).
 		Create(&task).Error; err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return models.Task{}, api.ErrTaskAlreadyExist
+		}
+
 		return models.Task{}, fmt.Errorf("could not insert task: %w", err)
 	}
 
@@ -44,8 +66,12 @@ func (r *tasksRepo) Update(
 		Clauses(clause.Returning{}).
 		Where("id = ?", id).
 		Updates(update).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.Task{}, api.ErrTaskNotFound
+		}
+
 		return models.Task{},
-			fmt.Errorf("could not update task: %v with data: %v, %w", id, update, err)
+			fmt.Errorf("could not update task with id: %v with data: %v, %w", id, update, err)
 	}
 
 	return task.ToDomain(), nil
@@ -56,25 +82,6 @@ func (r *tasksRepo) List(ctx context.Context) ([]models.Task, error) {
 
 	if err := r.db.WithContext(ctx).Find(&tasks).Error; err != nil {
 		return nil, fmt.Errorf("could not get tasks: %w", err)
-	}
-
-	result := make([]models.Task, len(tasks))
-
-	for i, task := range tasks {
-		result[i] = task.ToDomain()
-	}
-
-	return result, nil
-}
-
-func (r *tasksRepo) FindDue(ctx context.Context, before time.Time) ([]models.Task, error) {
-	var tasks []SQLTask
-
-	if err := r.db.WithContext(ctx).
-		Where("reminded_at < ?", before).
-		Where("active = ?", true).
-		Find(&tasks).Error; err != nil {
-		return nil, fmt.Errorf("could not get due tasks: %w", err)
 	}
 
 	result := make([]models.Task, len(tasks))

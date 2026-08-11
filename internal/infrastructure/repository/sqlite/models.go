@@ -7,10 +7,10 @@ import (
 )
 
 type SQLTask struct {
-	ID         int    `gorm:"primaryKey"`
-	Name       string `gorm:"not null"`
-	Active     bool   `gorm:"not null"`
-	RemindedAt time.Time
+	ID        int    `gorm:"primaryKey"`
+	Name      string `gorm:"not null"`
+	Active    bool   `gorm:"not null"`
+	LastRunAt *time.Time
 }
 
 func (SQLTask) TableName() string {
@@ -19,18 +19,18 @@ func (SQLTask) TableName() string {
 
 func (s SQLTask) ToDomain() models.Task {
 	return models.Task{
-		ID:         s.ID,
-		Name:       s.Name,
-		RemindedAt: s.RemindedAt,
-		Active:     s.Active,
+		ID:        s.ID,
+		Name:      s.Name,
+		LastRunAt: s.LastRunAt,
+		Active:    s.Active,
 	}
 }
 
 func SQLTaskFromDomain(task models.Task) SQLTask {
 	return SQLTask{
-		ID:         task.ID,
-		Name:       task.Name,
-		RemindedAt: task.RemindedAt,
-		Active:     task.Active,
+		ID:        task.ID,
+		Name:      task.Name,
+		LastRunAt: task.LastRunAt,
+		Active:    task.Active,
 	}
 }

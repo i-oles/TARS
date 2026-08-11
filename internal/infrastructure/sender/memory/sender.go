@@ -1,8 +1,6 @@
 package memory
 
-import (
-	"main/internal/infrastructure/sender"
-)
+import "main/internal/infrastructure/sender/models"
 
 type Sender struct {
 	storage *Storage
@@ -16,7 +14,7 @@ func NewSender(
 	}
 }
 
-func (s *Sender) Send(messages ...sender.Message) error {
+func (s *Sender) Send(messages ...models.Message) error {
 	for _, m := range messages {
 		s.storage.AddView("from: " + m.From + `<hr style="margin:5px 0;">`)
 		s.storage.AddView("to: " + m.To + `<hr style="margin:5px 0;">`)

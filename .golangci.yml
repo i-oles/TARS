@@ -156,7 +156,7 @@ linters:
 
   exclusions:
     rules:
-      - path: cmd/yoga/main.go
+      - path: cmd/main.go
         linters:
           - gocyclo
           - funlen
@@ -171,21 +171,11 @@ linters:
           - maintidx
           - dupl
 
-      - path: internal/application/classes/service.go
+      - path: internal/application/task/doctorreminder
         linters:
-          - typecheck
+          - lll
+          - gosec
 
-      - path: internal/domain/repositories/repositories.go
-        linters:
-          - interfacebloat
-
-      - path: assets/example/send_confirmation_email.go
-        linters:
-          - typecheck
-
-      - path: pkg/optional/optional.go
-        linters:
-          - ireturn
 
 formatters:
   enable:

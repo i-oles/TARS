@@ -41,13 +41,18 @@ type Sender struct {
 	Signature string
 }
 
+type Tasks struct {
+	DoctorReminder DoctorReminder
+}
+
 type DoctorReminder struct {
 	RecipientEmail string
+	RefID          string
 	Interval       Duration
 }
 
-type Tasks struct {
-	DoctorReminder DoctorReminder
+type Scheduler struct {
+	Interval Duration
 }
 
 type Configuration struct {
@@ -60,6 +65,7 @@ type Configuration struct {
 	LogBusinessErrors   bool
 	LogConfig           bool
 	Sender              Sender
+	Scheduler           Scheduler
 	DomainAddr          string
 	BaseRequestTmplPath string
 	MockEmailSender     bool
@@ -116,7 +122,13 @@ func loadEnvs(cfg *Configuration) {
 		cfg.DBPath = dbPath
 	}
 
-	if drReminderRecipientEmail := os.Getenv("DR_REMINDER_RECIPIENT_EMAIL"); drReminderRecipientEmail != "" {
+	if drReminderRecipientEmail := os.Getenv(
+		"DR_REMINDER_RECIPIENT_EMAIL",
+	); drReminderRecipientEmail != "" {
 		cfg.Tasks.DoctorReminder.RecipientEmail = drReminderRecipientEmail
+	}
+
+	if refID := os.Getenv("DR_REMINDER_REF_ID"); refID != "" {
+		cfg.Tasks.DoctorReminder.RefID = refID
 	}
 }

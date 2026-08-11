@@ -9,21 +9,21 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
-	"main/internal/application/task"
+	"main/internal/application/task/doctorreminder"
 	"main/internal/configuration"
-	"main/internal/domain/repositories"
-	"main/internal/domain/requester"
+	"main/internal/domain/contracts"
 	sqliteRepo "main/internal/infrastructure/repository/sqlite"
 	"main/internal/infrastructure/requester/gmail"
 	"main/internal/infrastructure/scheduler"
-	"main/internal/infrastructure/sender"
 	gmailSender "main/internal/infrastructure/sender/gmail"
 	"main/internal/infrastructure/sender/memory"
+	"main/internal/interfaces/http/api/errs"
+	"main/internal/interfaces/http/api/handlers/updatetask"
 	"main/internal/interfaces/http/html/handlers/emails"
+	"main/internal/interfaces/middleware"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -31,10 +31,11 @@ import (
 )
 
 type Components struct {
-	tasksRepo repositories.ITasks
-	requester requester.IRequester
-	database  *gorm.DB
-	storage   *memory.Storage
+	tasksRepo  contracts.ITasks
+	requester  contracts.IRequester
+	errHandler errs.IErrorHandler
+	database   *gorm.DB
+	storage    *memory.Storage
 }
 
 func main() {
@@ -53,26 +54,27 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go func(ctxTimeout time.Duration) {
-		schedulerCtx, cancel := context.WithTimeout(ctx, ctxTimeout)
-		defer cancel()
-
-		doctorReminderTask := task.NewDoctorReminder(
+	go func() {
+		doctorReminderTask := doctorreminder.New(
 			components.requester,
+			components.tasksRepo,
 			cfg.Tasks.DoctorReminder.RecipientEmail,
+			cfg.Tasks.DoctorReminder.RefID,
+			cfg.Tasks.DoctorReminder.Interval.Duration,
 		)
 
-		scheduler := scheduler.New(cfg.Tasks.DoctorReminder.Interval.Duration, doctorReminderTask)
+		scheduler := scheduler.New(cfg.Scheduler.Interval.Duration, doctorReminderTask)
 
-		err := scheduler.Run(schedulerCtx)
-		if err != nil {
+		if err := scheduler.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 			slog.Error("failed to run scheduler", slog.String("err", err.Error()))
 			os.Exit(1)
 		}
-	}(cfg.ContextTimeout.Duration)
+	}()
 
 	router := setupRouter(
 		components.storage,
+		components.errHandler,
+		components.tasksRepo,
 		cfg,
 	)
 
@@ -119,7 +121,7 @@ func buildComponents(cfg *configuration.Configuration) (Components, error) {
 		return Components{}, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
-	var sender sender.IEmailSender
+	var sender contracts.IEmailSender
 
 	sender = gmailSender.New(
 		cfg.Sender.Host,
@@ -145,16 +147,21 @@ func buildComponents(cfg *configuration.Configuration) (Components, error) {
 		cfg.BaseRequestTmplPath,
 	)
 
+	errHandler := errs.NewErrorHandler()
+
 	return Components{
-		tasksRepo: tasksRepo,
-		requester: requester,
-		database:  database,
-		storage:   &memoryStorage,
+		tasksRepo:  tasksRepo,
+		requester:  requester,
+		database:   database,
+		storage:    &memoryStorage,
+		errHandler: errHandler,
 	}, nil
 }
 
 func setupRouter(
 	storage *memory.Storage,
+	errHandler errs.IErrorHandler,
+	tasksRepo contracts.ITasks,
 	cfg *configuration.Configuration,
 ) *gin.Engine {
 	router := gin.Default()
@@ -170,16 +177,10 @@ func setupRouter(
 		}
 	}
 
-	// API
-	// authMiddleware := middleware.Auth(cfg.AuthSecret)
-	//
-	// createTaskHandler := createtask.NewHandler(tasksRepo)
-	// listTasksHandler := listbookings.NewHandler(tasksRepo)
-	//
-	// {
-	// 	api.POST("/api/v1/tasks", authMiddleware, createTaskHandler.Handle)
-	// 	api.GET("/api/v1/tasks", authMiddleware, listTasksHandler.Handle)
-	// }
+	authMiddleware := middleware.Auth(cfg.AuthSecret)
+
+	updateTaskHandler := updatetask.NewHandler(tasksRepo, errHandler)
+	api.PATCH("/api/v1/tasks/:task_id", authMiddleware, updateTaskHandler.Handle)
 
 	return router
 }

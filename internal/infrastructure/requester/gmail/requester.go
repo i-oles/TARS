@@ -5,19 +5,20 @@ import (
 	"html/template"
 	"strings"
 
+	"main/internal/domain/contracts"
 	"main/internal/infrastructure/requester/models"
-	"main/internal/infrastructure/sender"
+	senderModels "main/internal/infrastructure/sender/models"
 )
 
 type requester struct {
-	sender         sender.IEmailSender
+	sender         contracts.IEmailSender
 	ownerEmail     string
 	reqestTmplPath string
 	signature      string
 }
 
 func NewRequester(
-	sender sender.IEmailSender,
+	sender contracts.IEmailSender,
 	ownerEmail,
 	signature,
 	baseTmplPath string,
@@ -73,15 +74,15 @@ func (n *requester) buildMsg(
 	subject string,
 	tmpl *template.Template,
 	tmplData any,
-) (sender.Message, error) {
+) (senderModels.Message, error) {
 	var body strings.Builder
 
 	err := tmpl.Execute(&body, tmplData)
 	if err != nil {
-		return sender.Message{}, fmt.Errorf("could not execute template: %w", err)
+		return senderModels.Message{}, fmt.Errorf("could not execute template: %w", err)
 	}
 
-	return sender.Message{
+	return senderModels.Message{
 		From:    n.ownerEmail,
 		To:      recipientEmail,
 		Subject: subject,

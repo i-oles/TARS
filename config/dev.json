@@ -6,9 +6,12 @@
   "logBusinessErrors": true,
   "logConfig": true,
   "authSecret": "",
-  "tasks" : {
-    "doctorReminder" : {
-        "interval" : "2h",
+  "scheduler" : {
+    "interval" : "10s",
+  },
+  "tasks": {
+    "doctor_reminder": {
+        "interval": "10s",
     },
   },
   "sender": {

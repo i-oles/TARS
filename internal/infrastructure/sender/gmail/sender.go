@@ -4,7 +4,7 @@ import (
 	"crypto/tls"
 	"fmt"
 
-	"main/internal/infrastructure/sender"
+	"main/internal/infrastructure/sender/models"
 
 	"gopkg.in/gomail.v2"
 )
@@ -31,7 +31,7 @@ func New(
 	}
 }
 
-func (s *Sender) Send(messages ...sender.Message) error {
+func (s *Sender) Send(messages ...models.Message) error {
 	msgs := make([]*gomail.Message, len(messages))
 	for i, m := range messages {
 		msg := gomail.NewMessage()

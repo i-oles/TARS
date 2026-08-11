@@ -3,14 +3,15 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"main/internal/application"
 )
 
 type Scheduler struct {
-	tasks    []application.ITask
 	interval time.Duration
+	tasks    []application.ITask
 }
 
 func New(
@@ -18,8 +19,8 @@ func New(
 	tasks ...application.ITask,
 ) *Scheduler {
 	return &Scheduler{
-		tasks:    tasks,
 		interval: interval,
+		tasks:    tasks,
 	}
 }
 
@@ -28,6 +29,8 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	defer ticker.Stop()
 
 	for {
+		slog.Info("scheduler started...")
+
 		if err := s.runTasks(ctx); err != nil {
 			return fmt.Errorf("failed to run tasks: %w", err)
 		}
@@ -45,6 +48,8 @@ func (s *Scheduler) runTasks(ctx context.Context) error {
 		if err := task.Run(ctx); err != nil {
 			return fmt.Errorf("failed to run task: %s: %w", task.Name(), err)
 		}
+
+		slog.Info("task run", slog.String("name", task.Name()))
 	}
 
 	return nil
