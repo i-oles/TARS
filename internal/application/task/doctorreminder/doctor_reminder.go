@@ -63,20 +63,9 @@ func (t *DoctorReminder) Run(ctx context.Context) error {
 		return nil
 	}
 
-	subjects := getSubjects()
-	sKey := rand.Intn(len(subjects))
-
-	subject, ok := getSubjects()[sKey]
-	if !ok {
-		return fmt.Errorf("subject with key: %d not found", sKey)
-	}
-
-	messgaes := getMessages(t.refID)
-	mKey := rand.Intn(len(messgaes))
-
-	content, ok := getMessages(t.refID)[mKey]
-	if !ok {
-		return fmt.Errorf("subject with key: %d not found", mKey)
+	subject, content, err := t.getSubjectAndContent()
+	if err != nil {
+		return fmt.Errorf("could get suject and content for: %s: %w", t.Name(), err)
 	}
 
 	err = t.requester.Request(subject, content, t.recipientEmail)
@@ -92,4 +81,24 @@ func (t *DoctorReminder) Run(ctx context.Context) error {
 	slog.Info("task finished", slog.String("name", task.Name))
 
 	return nil
+}
+
+func (t *DoctorReminder) getSubjectAndContent() (string, string, error) {
+	subjects := getSubjects()
+	sKey := rand.Intn(len(subjects))
+
+	subject, ok := getSubjects()[sKey]
+	if !ok {
+		return "", "", fmt.Errorf("subject with key: %d not found", sKey)
+	}
+
+	messgaes := getMessages(t.refID)
+	mKey := rand.Intn(len(messgaes))
+
+	content, ok := getMessages(t.refID)[mKey]
+	if !ok {
+		return "", "", fmt.Errorf("subject with key: %d not found", mKey)
+	}
+
+	return subject, content, nil
 }
