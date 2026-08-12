@@ -10,6 +10,7 @@ import (
 
 	"main/internal/domain/contracts"
 	"main/internal/domain/errs/api"
+	"main/internal/domain/models"
 )
 
 type DoctorReminder struct {
@@ -45,16 +46,9 @@ func (t *DoctorReminder) Run(ctx context.Context) error {
 		return nil
 	}
 
-	task, err := t.repoTasks.GetByName(ctx, t.Name())
+	task, err := t.getOrInsertTask(ctx)
 	if err != nil {
-		if errors.Is(err, api.ErrTaskNotFound) {
-			task, err = t.repoTasks.Insert(ctx, t.Name())
-			if err != nil {
-				return fmt.Errorf("could insert task with name %s: %w", t.Name(), err)
-			}
-		} else {
-			return fmt.Errorf("could not get task by %s: %w", t.Name(), err)
-		}
+		return fmt.Errorf("could get or insert task: %s: %w", t.Name(), err)
 	}
 
 	if !task.Active {
@@ -89,6 +83,22 @@ func (t *DoctorReminder) Run(ctx context.Context) error {
 
 func isWeekend(t time.Time) bool {
 	return t.Weekday() == time.Saturday || t.Weekday() == time.Sunday
+}
+
+func (t *DoctorReminder) getOrInsertTask(ctx context.Context) (models.Task, error) {
+	task, err := t.repoTasks.GetByName(ctx, t.Name())
+	if err != nil {
+		if errors.Is(err, api.ErrTaskNotFound) {
+			task, err = t.repoTasks.Insert(ctx, t.Name())
+			if err != nil {
+				return models.Task{}, fmt.Errorf("could insert task with name %s: %w", t.Name(), err)
+			}
+		} else {
+			return models.Task{}, fmt.Errorf("could not get task by %s: %w", t.Name(), err)
+		}
+	}
+
+	return task, nil
 }
 
 func (t *DoctorReminder) getSubjectAndContent() (string, string, error) {
