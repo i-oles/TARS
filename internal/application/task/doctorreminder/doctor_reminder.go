@@ -41,6 +41,10 @@ func (t *DoctorReminder) Name() string {
 }
 
 func (t *DoctorReminder) Run(ctx context.Context) error {
+	if isWeekend(time.Now()) {
+		return nil
+	}
+
 	task, err := t.repoTasks.GetByName(ctx, t.Name())
 	if err != nil {
 		if errors.Is(err, api.ErrTaskNotFound) {
@@ -81,6 +85,10 @@ func (t *DoctorReminder) Run(ctx context.Context) error {
 	slog.Info("task finished", slog.String("name", task.Name))
 
 	return nil
+}
+
+func isWeekend(t time.Time) bool {
+	return t.Weekday() == time.Saturday || t.Weekday() == time.Sunday
 }
 
 func (t *DoctorReminder) getSubjectAndContent() (string, string, error) {
