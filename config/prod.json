@@ -7,11 +7,11 @@
   "logConfig": false,
   "authSecret": "",
   "scheduler" : {
-    "interval" : "3h",
+    "interval" : "1h",
   },
   "tasks": {
     "doctorReminder": {
-        "interval": "5h",
+        "interval": "24h",
     },
   },
   "sender": {
