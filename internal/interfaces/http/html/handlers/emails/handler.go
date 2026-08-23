@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"main/internal/infrastructure/sender/memory"
+	"main/internal/infrastructure/mailer/memory"
 
 	"github.com/gin-gonic/gin"
 )

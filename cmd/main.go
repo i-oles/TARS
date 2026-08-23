@@ -9,17 +9,19 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"main/internal/application/email"
+	"main/internal/application/task/ceneocatcher"
 	"main/internal/application/task/doctorreminder"
 	"main/internal/configuration"
 	"main/internal/domain/contracts"
+	"main/internal/infrastructure/mailer/gmail"
+	"main/internal/infrastructure/mailer/memory"
 	sqliteRepo "main/internal/infrastructure/repository/sqlite"
-	"main/internal/infrastructure/requester/gmail"
 	"main/internal/infrastructure/scheduler"
-	gmailSender "main/internal/infrastructure/sender/gmail"
-	"main/internal/infrastructure/sender/memory"
 	"main/internal/interfaces/http/api/errs"
 	"main/internal/interfaces/http/api/handlers/updatetask"
 	"main/internal/interfaces/http/html/handlers/emails"
@@ -31,11 +33,12 @@ import (
 )
 
 type Components struct {
-	tasksRepo  contracts.ITasks
-	requester  contracts.IRequester
-	errHandler errs.IErrorHandler
-	database   *gorm.DB
-	storage    *memory.Storage
+	tasksRepo           contracts.ITasks
+	emailComposer       email.Composer
+	mailer              email.IMailer
+	errHandler          errs.IErrorHandler
+	memoryMailerStorage *memory.Storage
+	database            *gorm.DB
 }
 
 func main() {
@@ -56,14 +59,28 @@ func main() {
 
 	go func() {
 		doctorReminderTask := doctorreminder.New(
-			components.requester,
+			components.emailComposer,
+			components.mailer,
 			components.tasksRepo,
 			cfg.Tasks.DoctorReminder.RecipientEmail,
 			cfg.Tasks.DoctorReminder.RefID,
 			cfg.Tasks.DoctorReminder.Interval.Duration,
 		)
 
-		scheduler := scheduler.New(cfg.Scheduler.Interval.Duration, doctorReminderTask)
+		ceneoCatcherTask := ceneocatcher.New(
+			components.emailComposer,
+			components.mailer,
+			components.tasksRepo,
+			215,
+			198572377,
+			1*time.Minute,
+		)
+
+		scheduler := scheduler.New(
+			cfg.Scheduler.Interval.Duration,
+			doctorReminderTask,
+			ceneoCatcherTask,
+		)
 
 		if err := scheduler.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 			slog.Error("failed to run scheduler", slog.String("err", err.Error()))
@@ -72,7 +89,7 @@ func main() {
 	}()
 
 	router := setupRouter(
-		components.storage,
+		components.memoryMailerStorage,
 		components.errHandler,
 		components.tasksRepo,
 		cfg,
@@ -121,45 +138,46 @@ func buildComponents(cfg *configuration.Configuration) (Components, error) {
 		return Components{}, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
-	var sender contracts.IEmailSender
+	var mailer email.IMailer
 
-	sender = gmailSender.New(
-		cfg.Sender.Host,
-		cfg.Sender.Port,
-		cfg.Sender.Login,
-		cfg.Sender.Password,
+	mailer = gmail.NewMailer(
+		cfg.Mailer.Host,
+		cfg.Mailer.Port,
+		cfg.Mailer.Login,
+		cfg.Mailer.Password,
 	)
 
-	memoryStorage := memory.Storage{
+	memoryMailerStorage := memory.Storage{
 		Views: make([]string, 0),
 	}
 
-	if cfg.MockEmailSender {
-		sender = memory.NewSender(&memoryStorage)
+	if cfg.MockMailer {
+		mailer = memory.NewMailer(&memoryMailerStorage)
 	}
 
 	tasksRepo := sqliteRepo.NewTasksRepo(database)
 
-	requester := gmail.NewRequester(
-		sender,
-		cfg.Sender.Login,
-		cfg.Sender.Signature,
-		cfg.BaseRequestTmplPath,
+	emailComposer := email.NewComposer(
+		mailer,
+		cfg.Mailer.Login,
+		cfg.Mailer.Signature,
+		cfg.BaseEmailTmplPath,
 	)
 
 	errHandler := errs.NewErrorHandler()
 
 	return Components{
-		tasksRepo:  tasksRepo,
-		requester:  requester,
-		database:   database,
-		storage:    &memoryStorage,
-		errHandler: errHandler,
+		tasksRepo:           tasksRepo,
+		emailComposer:       *emailComposer,
+		mailer:              mailer,
+		database:            database,
+		memoryMailerStorage: &memoryMailerStorage,
+		errHandler:          errHandler,
 	}, nil
 }
 
 func setupRouter(
-	storage *memory.Storage,
+	mailerMemoryStorage *memory.Storage,
 	errHandler errs.IErrorHandler,
 	tasksRepo contracts.ITasks,
 	cfg *configuration.Configuration,
@@ -168,11 +186,11 @@ func setupRouter(
 
 	api := router.Group("/")
 
-	emailsHander := emails.NewHandler(storage)
-
 	{
 		// testing
-		if cfg.MockEmailSender {
+		if cfg.MockMailer {
+			emailsHander := emails.NewHandler(mailerMemoryStorage)
+
 			api.GET("/emails", emailsHander.Handle)
 		}
 	}

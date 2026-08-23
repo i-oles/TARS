@@ -4,21 +4,21 @@ import (
 	"crypto/tls"
 	"fmt"
 
-	"main/internal/infrastructure/sender/models"
+	"main/internal/application/email"
 
 	"gopkg.in/gomail.v2"
 )
 
-type Sender struct {
+type Mailer struct {
 	dialer *gomail.Dialer
 }
 
-func New(
+func NewMailer(
 	host string,
 	port int,
 	login string,
 	password string,
-) *Sender {
+) *Mailer {
 	dialer := gomail.NewDialer(host, port, login, password)
 	dialer.TLSConfig = &tls.Config{
 		MinVersion:         tls.VersionTLS12,
@@ -26,12 +26,12 @@ func New(
 		InsecureSkipVerify: false,
 	}
 
-	return &Sender{
+	return &Mailer{
 		dialer: dialer,
 	}
 }
 
-func (s *Sender) Send(messages ...models.Message) error {
+func (s *Mailer) Send(messages ...email.Message) error {
 	msgs := make([]*gomail.Message, len(messages))
 	for i, m := range messages {
 		msg := gomail.NewMessage()

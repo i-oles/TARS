@@ -7,14 +7,14 @@
   "logConfig": true,
   "authSecret": "",
   "scheduler" : {
-    "interval" : "10s",
+    "interval" : "30s",
   },
   "tasks": {
     "doctorReminder": {
         "interval": "30s",
     },
   },
-  "sender": {
+  "mailer": {
     "host": "smtp.gmail.com",
     "port": 587,
     "login": "",
@@ -22,6 +22,6 @@
     "signature": "Igor Oleś",
   },
   "domainAddr": "http://localhost:8080",
-  "baseRequestTmplPath" : "internal/infrastructure/requester/templates/",
-  "mockEmailSender": true
+  "baseEmailTmplPath" : "internal/application/email/templates/",
+  "mockMailer": true
 }
