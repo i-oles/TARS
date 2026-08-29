@@ -2,7 +2,7 @@ package ceneocatcher
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,62 +13,45 @@ import (
 
 	"main/internal/application/email"
 	"main/internal/domain/contracts"
-	"main/internal/domain/errs/api"
 	"main/internal/domain/models"
 
 	"github.com/PuerkitoBio/goquery"
 )
 
-type CeneoCatcher struct {
+type CeneoCatcherTaskRunner struct {
 	emailComposer   email.Composer
 	mailer          email.IMailer
 	tasksRepo       contracts.ITasks
-	interval        time.Duration
-	maxLimitPrice   float64
-	ceneoProductID  int
 	ceneoDomain     string
 	ceneoProductTag string
 }
 
-func New(
+func NewTaskRunner(
 	emailComposer email.Composer,
 	mailer email.IMailer,
 	tasksRepo contracts.ITasks,
-	maxLimitPrice float64,
-	ceneoProductID int,
-	interval time.Duration,
-) *CeneoCatcher {
-	return &CeneoCatcher{
+) *CeneoCatcherTaskRunner {
+	return &CeneoCatcherTaskRunner{
 		emailComposer:   emailComposer,
 		mailer:          mailer,
 		tasksRepo:       tasksRepo,
-		maxLimitPrice:   maxLimitPrice,
-		interval:        interval,
 		ceneoDomain:     "https://ceneo.pl",
-		ceneoProductID:  ceneoProductID,
 		ceneoProductTag: ".product-offer__container",
 	}
 }
 
-func (t *CeneoCatcher) Name() string {
-	return "ceneo_catcher"
-}
+func (t *CeneoCatcherTaskRunner) Run(ctx context.Context, taskID int, config []byte) error {
+	var cfg models.CeneoCatcherConfig
 
-func (t *CeneoCatcher) Run(ctx context.Context) error {
-	task, err := t.getOrInsertTask(ctx)
-	if err != nil {
-		return fmt.Errorf("could get or insert task: %s: %w", t.Name(), err)
+	if err := json.Unmarshal(config, &cfg); err != nil {
+		return fmt.Errorf("invalid ceneo catcher config: %w", err)
 	}
 
-	if !task.Active {
-		return nil
-	}
+	url := fmt.Sprintf("%s/%d", t.ceneoDomain, cfg.ProductID)
 
-	url := fmt.Sprintf("%s/%d", t.ceneoDomain, t.ceneoProductID)
-
-	product, err := t.getLowestPriceProduct(url)
+	product, err := t.getLowestPriceProduct(url, cfg.MaxPrice)
 	if err != nil {
-		return fmt.Errorf("could get suject and content for: %s: %w", t.Name(), err)
+		return fmt.Errorf("could get lowest price for task with id %d: %w", taskID, err)
 	}
 
 	if product == nil {
@@ -84,36 +67,20 @@ func (t *CeneoCatcher) Run(ctx context.Context) error {
 
 	msg, err := t.emailComposer.ComposeForCeneoCatcher(data)
 	if err != nil {
-		return fmt.Errorf("could not request task %v: %w", t.Name(), err)
+		return fmt.Errorf("could not compose msg for ceneo catcher task: %w", err)
 	}
 
 	err = t.mailer.Send(msg)
 	if err != nil {
-		return fmt.Errorf("could not send msg %v: %w", t.Name(), err)
+		return fmt.Errorf("could not send msg - %v: %w", msg, err)
 	}
 
-	_, err = t.tasksRepo.Update(ctx, task.ID, map[string]any{"last_run_at": time.Now()})
+	_, err = t.tasksRepo.Update(ctx, taskID, map[string]any{"last_run_at": time.Now()})
 	if err != nil {
-		return fmt.Errorf("could not update task %v: %w", t.Name(), err)
+		return fmt.Errorf("could not update task: %w", err)
 	}
 
 	return nil
-}
-
-func (t *CeneoCatcher) getOrInsertTask(ctx context.Context) (models.Task, error) {
-	task, err := t.tasksRepo.GetByName(ctx, t.Name())
-	if err != nil {
-		if errors.Is(err, api.ErrTaskNotFound) {
-			task, err = t.tasksRepo.Insert(ctx, t.Name())
-			if err != nil {
-				return models.Task{}, fmt.Errorf("could insert task with name %s: %w", t.Name(), err)
-			}
-		} else {
-			return models.Task{}, fmt.Errorf("could not get task by %s: %w", t.Name(), err)
-		}
-	}
-
-	return task, nil
 }
 
 type Product struct {
@@ -123,10 +90,10 @@ type Product struct {
 	URL     string
 }
 
-func (t *CeneoCatcher) getLowestPriceProduct(domain string) (*Product, error) {
+func (t *CeneoCatcherTaskRunner) getLowestPriceProduct(domain string, maxPrice int) (*Product, error) {
 	resp, err := http.Get(domain)
 	if err != nil {
-		return nil, fmt.Errorf("could insert task with name %s: %w", t.Name(), err)
+		return nil, fmt.Errorf("could not get domain %s: %w", domain, err)
 	}
 
 	defer resp.Body.Close()
@@ -197,7 +164,7 @@ func (t *CeneoCatcher) getLowestPriceProduct(domain string) (*Product, error) {
 		}
 	}
 
-	if lowestPrice <= t.maxLimitPrice {
+	if lowestPrice <= float64(maxPrice) {
 		slog.Info("ceneo_catcher - found desired price", "price", lowestPrice)
 
 		return &productWithLowestPrice, nil

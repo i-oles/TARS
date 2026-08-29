@@ -9,11 +9,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"main/internal/application/email"
+	"main/internal/application/scheduler"
 	"main/internal/application/task/ceneocatcher"
 	"main/internal/application/task/doctorreminder"
 	"main/internal/configuration"
@@ -21,8 +21,8 @@ import (
 	"main/internal/infrastructure/mailer/gmail"
 	"main/internal/infrastructure/mailer/memory"
 	sqliteRepo "main/internal/infrastructure/repository/sqlite"
-	"main/internal/infrastructure/scheduler"
 	"main/internal/interfaces/http/api/errs"
+	"main/internal/interfaces/http/api/handlers/createtask"
 	"main/internal/interfaces/http/api/handlers/updatetask"
 	"main/internal/interfaces/http/html/handlers/emails"
 	"main/internal/interfaces/middleware"
@@ -58,28 +58,23 @@ func main() {
 	defer cancel()
 
 	go func() {
-		doctorReminderTask := doctorreminder.New(
+		doctorReminderTaskRunner := doctorreminder.NewTaskRunner(
 			components.emailComposer,
 			components.mailer,
 			components.tasksRepo,
-			cfg.Tasks.DoctorReminder.RecipientEmail,
-			cfg.Tasks.DoctorReminder.RefID,
-			cfg.Tasks.DoctorReminder.Interval.Duration,
 		)
 
-		ceneoCatcherTask := ceneocatcher.New(
+		ceneoCatcherTaskRunner := ceneocatcher.NewTaskRunner(
 			components.emailComposer,
 			components.mailer,
 			components.tasksRepo,
-			215,
-			198572377,
-			1*time.Minute,
 		)
 
 		scheduler := scheduler.New(
+			components.tasksRepo,
+			ceneoCatcherTaskRunner,
+			doctorReminderTaskRunner,
 			cfg.Scheduler.Interval.Duration,
-			doctorReminderTask,
-			ceneoCatcherTask,
 		)
 
 		if err := scheduler.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
@@ -197,7 +192,10 @@ func setupRouter(
 
 	authMiddleware := middleware.Auth(cfg.AuthSecret)
 
+	createTaskHandler := createtask.NewHandler(tasksRepo, errHandler)
 	updateTaskHandler := updatetask.NewHandler(tasksRepo, errHandler)
+
+	api.POST("/api/v1/tasks", authMiddleware, createTaskHandler.Handle)
 	api.PATCH("/api/v1/tasks/:task_id", authMiddleware, updateTaskHandler.Handle)
 
 	return router

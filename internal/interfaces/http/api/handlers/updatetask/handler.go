@@ -2,7 +2,9 @@ package updatetask
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"time"
 
 	"main/internal/domain/contracts"
 	"main/internal/interfaces/http/api/dto"
@@ -64,12 +66,33 @@ func (h *handler) Handle(ginCtx *gin.Context) {
 func getDataForTaskUpdate(req dto.UpdateTaskRequest) (map[string]any, error) {
 	updateData := map[string]any{}
 
+	if req.Name != nil {
+		updateData["name"] = *req.Active
+	}
+
+	if req.Type != nil {
+		updateData["type"] = *req.Type
+	}
+
 	if req.Active != nil {
 		updateData["active"] = *req.Active
 	}
 
+	if req.Interval != nil {
+		interval, err := time.ParseDuration(*req.Interval)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse interval: %v to Duration type", *req.Interval)
+		}
+
+		updateData["interval"] = interval
+	}
+
 	if req.LastRunAt != nil {
 		updateData["last_run_at"] = *req.LastRunAt
+	}
+
+	if req.Config != nil {
+		updateData["config"] = *req.Config
 	}
 
 	if len(updateData) == 0 {

@@ -41,23 +41,6 @@ type Mailer struct {
 	Signature string
 }
 
-type Tasks struct {
-	DoctorReminder DoctorReminder
-	CeneoCatcher   CeneoCatcher
-}
-
-type DoctorReminder struct {
-	RecipientEmail string
-	RefID          string
-	Interval       Duration
-}
-
-type CeneoCatcher struct {
-	MaxLimitPrice int
-	ProductID     int
-	Interval      Duration
-}
-
 type Scheduler struct {
 	Interval Duration
 }
@@ -76,7 +59,6 @@ type Configuration struct {
 	DomainAddr        string
 	BaseEmailTmplPath string
 	MockMailer        bool
-	Tasks             Tasks
 }
 
 func (c *Configuration) Pretty() string {
@@ -127,15 +109,5 @@ func loadEnvs(cfg *Configuration) {
 
 	if dbPath := os.Getenv("DATABASE_PATH"); dbPath != "" {
 		cfg.DBPath = dbPath
-	}
-
-	if drReminderRecipientEmail := os.Getenv(
-		"DR_REMINDER_RECIPIENT_EMAIL",
-	); drReminderRecipientEmail != "" {
-		cfg.Tasks.DoctorReminder.RecipientEmail = drReminderRecipientEmail
-	}
-
-	if refID := os.Getenv("DR_REMINDER_REF_ID"); refID != "" {
-		cfg.Tasks.DoctorReminder.RefID = refID
 	}
 }

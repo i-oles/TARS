@@ -9,11 +9,6 @@
   "scheduler" : {
     "interval" : "30s",
   },
-  "tasks": {
-    "doctorReminder": {
-        "interval": "30s",
-    },
-  },
   "mailer": {
     "host": "smtp.gmail.com",
     "port": 587,
