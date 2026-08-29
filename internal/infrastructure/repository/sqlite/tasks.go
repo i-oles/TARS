@@ -39,7 +39,10 @@ func (r *tasksRepo) GetByName(ctx context.Context, name string) (models.Task, er
 	return sqlTask.ToDomain(), nil
 }
 
-func (r *tasksRepo) Insert(ctx context.Context, taskCreation models.TaskCreation) (models.Task, error) {
+func (r *tasksRepo) Insert(
+	ctx context.Context,
+	taskCreation models.TaskCreation,
+) (models.Task, error) {
 	sqlTask := SQLTask{
 		Name:     taskCreation.Name,
 		Type:     string(taskCreation.Type),
