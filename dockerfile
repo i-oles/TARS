@@ -20,6 +20,6 @@ WORKDIR /app
 
 COPY --from=builder /tars /app/tars
 COPY --from=builder /app/config /app/config
-COPY --from=builder /app/internal/infrastructure/requester/templates /app/internal/infrastructure/requester/templates
+COPY --from=builder /app/internal/application/email/templates /app/internal/application/email/templates
 
 ENTRYPOINT ["/app/tars"]
