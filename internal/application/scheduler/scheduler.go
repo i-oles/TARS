@@ -9,6 +9,7 @@ import (
 	"main/internal/application/task/ceneocatcher"
 	"main/internal/application/task/doctorreminder"
 	"main/internal/domain/contracts"
+	"main/internal/domain/models"
 )
 
 type Scheduler struct {
@@ -61,23 +62,17 @@ func (s *Scheduler) runTasks(ctx context.Context) error {
 	}
 
 	for _, task := range tasks {
-		if !task.Active {
-			continue
-		}
-
-		if task.LastRunAt != nil && time.Since(*task.LastRunAt) < task.Interval {
-			slog.Info("not enought time passed since lat run... ", slog.String("name", task.Name))
-
+		if !shouldRunTask(task) {
 			continue
 		}
 
 		switch task.Type {
-		case "ceneo_catcher":
+		case models.TaskTypeCeneoCatcher:
 			err := s.ceneoCatcherTaskRunner.Run(ctx, task.ID, task.Config)
 			if err != nil {
 				return fmt.Errorf("failed to run ceneo catcher task: %w", err)
 			}
-		case "doctor_reminder":
+		case models.TaskTypeDoctorReminder:
 			if isWeekend(time.Now()) {
 				continue
 			}
@@ -94,4 +89,18 @@ func (s *Scheduler) runTasks(ctx context.Context) error {
 
 func isWeekend(t time.Time) bool {
 	return t.Weekday() == time.Saturday || t.Weekday() == time.Sunday
+}
+
+func shouldRunTask(task models.Task) bool {
+	if !task.Active {
+		return false
+	}
+
+	if task.LastRunAt != nil && time.Since(*task.LastRunAt) < task.Interval {
+		slog.Info("not enought time passed since lat run... ", slog.String("name", task.Name))
+
+		return false
+	}
+
+	return true
 }

@@ -47,9 +47,7 @@ func (t *CeneoCatcherTaskRunner) Run(ctx context.Context, taskID int, config []b
 		return fmt.Errorf("invalid ceneo catcher config: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/%d", t.ceneoDomain, cfg.ProductID)
-
-	product, err := t.getLowestPriceProduct(url, cfg.MaxPrice)
+	product, err := t.getLowestPriceProduct(ctx, t.ceneoDomain, cfg.ProductID, cfg.MaxPrice)
 	if err != nil {
 		return fmt.Errorf("could get lowest price for task with id %d: %w", taskID, err)
 	}
@@ -90,10 +88,21 @@ type Product struct {
 	URL     string
 }
 
-func (t *CeneoCatcherTaskRunner) getLowestPriceProduct(domain string, maxPrice int) (*Product, error) {
-	resp, err := http.Get(domain)
+func (t *CeneoCatcherTaskRunner) getLowestPriceProduct(
+	ctx context.Context, domain string, productID, maxPrice int,
+) (*Product, error) {
+	targetURL := fmt.Sprintf("%s/%d", domain, productID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("could not get domain %s: %w", domain, err)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("could make request %v: %w", req, err)
 	}
 
 	defer resp.Body.Close()
@@ -105,6 +114,43 @@ func (t *CeneoCatcherTaskRunner) getLowestPriceProduct(domain string, maxPrice i
 
 	baseURL, _ := url.Parse(domain)
 
+	products := t.findProducts(doc, baseURL)
+
+	if len(products) == 0 {
+		return nil, nil
+	}
+
+	var lowestPrice float64
+
+	var productWithLowestPrice Product
+
+	for _, product := range products {
+		price, err := strconv.ParseFloat(
+			strings.ReplaceAll(
+				strings.ReplaceAll(product.Price, " ", ""), ",", "."), 64,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("could parse string to float: %w", err)
+		}
+
+		if lowestPrice == 0 || price < lowestPrice {
+			lowestPrice = price
+			productWithLowestPrice = product
+		}
+	}
+
+	if lowestPrice <= float64(maxPrice) {
+		slog.Info("ceneo_catcher - found desired price", "price", lowestPrice)
+
+		return &productWithLowestPrice, nil
+	}
+
+	slog.Info("ceneo_catcher - prices are too high", "lowest", lowestPrice)
+
+	return nil, nil
+}
+
+func (t *CeneoCatcherTaskRunner) findProducts(doc *goquery.Document, baseURL *url.URL) []Product {
 	products := make([]Product, 0)
 
 	doc.Find(t.ceneoProductTag).Each(func(i int, s *goquery.Selection) {
@@ -138,39 +184,5 @@ func (t *CeneoCatcherTaskRunner) getLowestPriceProduct(domain string, maxPrice i
 		products = append(products, product)
 	})
 
-	var lowestPrice float64
-
-	var productWithLowestPrice Product
-
-	for _, product := range products {
-		price, err := strconv.ParseFloat(
-			strings.ReplaceAll(
-				strings.ReplaceAll(product.Price, " ", ""), ",", "."), 64,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("could parse string to float: %w", err)
-		}
-
-		if lowestPrice == 0 {
-			lowestPrice = price
-			productWithLowestPrice = product
-
-			continue
-		}
-
-		if price < lowestPrice {
-			lowestPrice = price
-			productWithLowestPrice = product
-		}
-	}
-
-	if lowestPrice <= float64(maxPrice) {
-		slog.Info("ceneo_catcher - found desired price", "price", lowestPrice)
-
-		return &productWithLowestPrice, nil
-	}
-
-	slog.Info("ceneo_catcher - prices are too high", "lowest", lowestPrice)
-
-	return nil, nil
+	return products
 }
