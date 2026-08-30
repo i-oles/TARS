@@ -23,11 +23,11 @@ func NewTasksRepo(db *gorm.DB) *tasksRepo {
 }
 
 func (r *tasksRepo) GetByName(ctx context.Context, name string) (models.Task, error) {
-	var task SQLTask
+	var sqlTask SQLTask
 
 	if err := r.db.WithContext(ctx).
 		Where("name = ?", name).
-		First(&task).
+		First(&sqlTask).
 		Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return models.Task{}, api.ErrTaskNotFound
@@ -36,16 +36,23 @@ func (r *tasksRepo) GetByName(ctx context.Context, name string) (models.Task, er
 		return models.Task{}, fmt.Errorf("could get task: %w", err)
 	}
 
-	return task.ToDomain(), nil
+	return sqlTask.ToDomain(), nil
 }
 
-func (r *tasksRepo) Insert(ctx context.Context, name string) (models.Task, error) {
-	task := SQLTask{
-		Name: name,
+func (r *tasksRepo) Insert(
+	ctx context.Context,
+	taskCreation models.TaskCreation,
+) (models.Task, error) {
+	sqlTask := SQLTask{
+		Name:     taskCreation.Name,
+		Type:     string(taskCreation.Type),
+		Active:   taskCreation.Active,
+		Interval: taskCreation.Interval,
+		Config:   taskCreation.Config,
 	}
 
 	if err := r.db.WithContext(ctx).
-		Create(&task).Error; err != nil {
+		Create(&sqlTask).Error; err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
 			return models.Task{}, api.ErrTaskAlreadyExist
 		}
@@ -53,7 +60,7 @@ func (r *tasksRepo) Insert(ctx context.Context, name string) (models.Task, error
 		return models.Task{}, fmt.Errorf("could not insert task: %w", err)
 	}
 
-	return task.ToDomain(), nil
+	return sqlTask.ToDomain(), nil
 }
 
 func (r *tasksRepo) Update(
@@ -78,15 +85,15 @@ func (r *tasksRepo) Update(
 }
 
 func (r *tasksRepo) List(ctx context.Context) ([]models.Task, error) {
-	var tasks []SQLTask
+	var sqlTasks []SQLTask
 
-	if err := r.db.WithContext(ctx).Find(&tasks).Error; err != nil {
+	if err := r.db.WithContext(ctx).Find(&sqlTasks).Error; err != nil {
 		return nil, fmt.Errorf("could not get tasks: %w", err)
 	}
 
-	result := make([]models.Task, len(tasks))
+	result := make([]models.Task, len(sqlTasks))
 
-	for i, task := range tasks {
+	for i, task := range sqlTasks {
 		result[i] = task.ToDomain()
 	}
 

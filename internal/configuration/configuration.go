@@ -33,7 +33,7 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type Sender struct {
+type Mailer struct {
 	Host      string
 	Port      int
 	Login     string
@@ -41,36 +41,24 @@ type Sender struct {
 	Signature string
 }
 
-type Tasks struct {
-	DoctorReminder DoctorReminder
-	Interval       Duration
-}
-
-type DoctorReminder struct {
-	RecipientEmail string
-	RefID          string
-	Interval       Duration
-}
-
 type Scheduler struct {
 	Interval Duration
 }
 
 type Configuration struct {
-	ListenAddress       string
-	DBPath              string
-	ReadTimeout         Duration
-	WriteTimeout        Duration
-	ContextTimeout      Duration
-	AuthSecret          string
-	LogBusinessErrors   bool
-	LogConfig           bool
-	Sender              Sender
-	Scheduler           Scheduler
-	DomainAddr          string
-	BaseRequestTmplPath string
-	MockEmailSender     bool
-	Tasks               Tasks
+	ListenAddress     string
+	DBPath            string
+	ReadTimeout       Duration
+	WriteTimeout      Duration
+	ContextTimeout    Duration
+	AuthSecret        string
+	LogBusinessErrors bool
+	LogConfig         bool
+	Mailer            Mailer
+	Scheduler         Scheduler
+	DomainAddr        string
+	BaseEmailTmplPath string
+	MockMailer        bool
 }
 
 func (c *Configuration) Pretty() string {
@@ -98,7 +86,7 @@ func GetConfig(cfgPath string) (*Configuration, error) {
 
 	loadEnvs(cfg)
 
-	if cfg.Sender.Login == "" || cfg.Sender.Password == "" {
+	if cfg.Mailer.Login == "" || cfg.Mailer.Password == "" {
 		return nil,
 			errors.New("provide envs for sender")
 	}
@@ -108,11 +96,11 @@ func GetConfig(cfgPath string) (*Configuration, error) {
 
 func loadEnvs(cfg *Configuration) {
 	if login := os.Getenv("SENDER_LOGIN"); login != "" {
-		cfg.Sender.Login = login
+		cfg.Mailer.Login = login
 	}
 
 	if password := os.Getenv("SENDER_PASSWORD"); password != "" {
-		cfg.Sender.Password = password
+		cfg.Mailer.Password = password
 	}
 
 	if authSecret := os.Getenv("AUTH_SECRET"); authSecret != "" {
@@ -121,15 +109,5 @@ func loadEnvs(cfg *Configuration) {
 
 	if dbPath := os.Getenv("DATABASE_PATH"); dbPath != "" {
 		cfg.DBPath = dbPath
-	}
-
-	if drReminderRecipientEmail := os.Getenv(
-		"DR_REMINDER_RECIPIENT_EMAIL",
-	); drReminderRecipientEmail != "" {
-		cfg.Tasks.DoctorReminder.RecipientEmail = drReminderRecipientEmail
-	}
-
-	if refID := os.Getenv("DR_REMINDER_REF_ID"); refID != "" {
-		cfg.Tasks.DoctorReminder.RefID = refID
 	}
 }

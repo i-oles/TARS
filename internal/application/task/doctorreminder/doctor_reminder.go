@@ -2,120 +2,88 @@ package doctorreminder
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math/rand"
 	"time"
 
+	"main/internal/application/email"
 	"main/internal/domain/contracts"
-	"main/internal/domain/errs/api"
 	"main/internal/domain/models"
 )
 
-type DoctorReminder struct {
-	requester      contracts.IRequester
-	repoTasks      contracts.ITasks
-	recipientEmail string
-	refID          string
-	interval       time.Duration
+type DoctorReminderTaskRunner struct {
+	emailComposer email.Composer
+	mailer        email.IMailer
+	tasksRepo     contracts.ITasks
 }
 
-func New(
-	requester contracts.IRequester,
-	repoTasks contracts.ITasks,
-	recipientEmail string,
-	refID string,
-	interval time.Duration,
-) *DoctorReminder {
-	return &DoctorReminder{
-		requester:      requester,
-		repoTasks:      repoTasks,
-		recipientEmail: recipientEmail,
-		refID:          refID,
-		interval:       interval,
+func NewTaskRunner(
+	emailComposer email.Composer,
+	mailer email.IMailer,
+	tasksRepo contracts.ITasks,
+) *DoctorReminderTaskRunner {
+	return &DoctorReminderTaskRunner{
+		emailComposer: emailComposer,
+		mailer:        mailer,
+		tasksRepo:     tasksRepo,
 	}
 }
 
-func (t *DoctorReminder) Name() string {
-	return "doctor_reminder"
-}
+func (t *DoctorReminderTaskRunner) Run(ctx context.Context, taskID int, config []byte) error {
+	var cfg models.DoctorReminderConfig
 
-func (t *DoctorReminder) Run(ctx context.Context) error {
-	if isWeekend(time.Now()) {
-		return nil
+	if err := json.Unmarshal(config, &cfg); err != nil {
+		return fmt.Errorf("invalid doctor reminder config: %w", err)
 	}
 
-	task, err := t.getOrInsertTask(ctx)
+	subject, content, err := t.getSubjectAndContent(cfg.ReferenceID)
 	if err != nil {
-		return fmt.Errorf("could get or insert task: %s: %w", t.Name(), err)
+		return fmt.Errorf("could get suject and content for task with ID %d: %w", taskID, err)
 	}
 
-	if !task.Active {
-		return nil
+	data := email.DoctorReminder{
+		Subject:        subject,
+		Content:        content,
+		RecipientEmail: cfg.RecipientEmail,
 	}
 
-	if task.LastRunAt != nil && time.Since(*task.LastRunAt) < t.interval {
-		slog.Info("not enought time passed since lat run... ", slog.String("name", task.Name))
-
-		return nil
-	}
-
-	subject, content, err := t.getSubjectAndContent()
+	msg, err := t.emailComposer.ComposeForDoctorReminder(data)
 	if err != nil {
-		return fmt.Errorf("could get suject and content for: %s: %w", t.Name(), err)
+		return fmt.Errorf("could not compose msg for doctor reminder task: %w", err)
 	}
 
-	err = t.requester.Request(subject, content, t.recipientEmail)
+	err = t.mailer.Send(msg)
 	if err != nil {
-		return fmt.Errorf("could not request task %v: %w", t.Name(), err)
+		return fmt.Errorf("could not send msg %v: %w", msg, err)
 	}
 
-	_, err = t.repoTasks.Update(ctx, task.ID, map[string]any{"last_run_at": time.Now()})
+	_, err = t.tasksRepo.Update(ctx, taskID, map[string]any{"last_run_at": time.Now()})
 	if err != nil {
-		return fmt.Errorf("could not update task %v: %w", t.Name(), err)
+		return fmt.Errorf("could not update task with ID %d: %w", taskID, err)
 	}
 
-	slog.Info("task finished", slog.String("name", task.Name))
+	slog.Info("task finished", slog.Int("id", taskID))
 
 	return nil
 }
 
-func isWeekend(t time.Time) bool {
-	return t.Weekday() == time.Saturday || t.Weekday() == time.Sunday
-}
-
-func (t *DoctorReminder) getOrInsertTask(ctx context.Context) (models.Task, error) {
-	task, err := t.repoTasks.GetByName(ctx, t.Name())
-	if err != nil {
-		if errors.Is(err, api.ErrTaskNotFound) {
-			task, err = t.repoTasks.Insert(ctx, t.Name())
-			if err != nil {
-				return models.Task{}, fmt.Errorf("could insert task with name %s: %w", t.Name(), err)
-			}
-		} else {
-			return models.Task{}, fmt.Errorf("could not get task by %s: %w", t.Name(), err)
-		}
-	}
-
-	return task, nil
-}
-
-func (t *DoctorReminder) getSubjectAndContent() (string, string, error) {
+func (t *DoctorReminderTaskRunner) getSubjectAndContent(refID string) (string, string, error) {
 	subjects := getSubjects()
-	sKey := rand.Intn(len(subjects))
+	subjectKey := rand.Intn(len(subjects))
 
-	subject, ok := getSubjects()[sKey]
+	subject, ok := getSubjects()[subjectKey]
 	if !ok {
-		return "", "", fmt.Errorf("subject with key: %d not found", sKey)
+		return "", "", fmt.Errorf("subject with key: %d not found", subjectKey)
 	}
 
-	messgaes := getMessages(t.refID)
-	mKey := rand.Intn(len(messgaes))
+	messages := getMessages(refID)
+	msgKey := rand.Intn(len(messages))
 
-	content, ok := getMessages(t.refID)[mKey]
+	content, ok := getMessages(refID)[msgKey]
 	if !ok {
-		return "", "", fmt.Errorf("subject with key: %d not found", mKey)
+		return "", "", fmt.Errorf("subject with key: %d not found", msgKey)
 	}
 
 	return subject, content, nil

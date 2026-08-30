@@ -176,6 +176,12 @@ linters:
           - lll
           - gosec
 
+      - path: internal/application/task/ceneocatcher
+        linters:
+          - errcheck
+          - mnd
+          - nilnil
+
 
 formatters:
   enable:

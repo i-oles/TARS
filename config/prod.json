@@ -9,12 +9,7 @@
   "scheduler" : {
     "interval" : "1h",
   },
-  "tasks": {
-    "doctorReminder": {
-        "interval": "24h",
-    },
-  },
-  "sender": {
+  "mailer": {
     "host": "smtp.gmail.com",
     "port": 587,
     "login": "",
@@ -22,6 +17,6 @@
     "signature": "Igor Oleś",
   },
   "domainAddr": "https://localhost:8080",
-  "baseRequestTmplPath" : "internal/infrastructure/requester/templates/",
-  "mockEmailSender": false
+  "baseEmailTmplPath" : "internal/application/email/templates/",
+  "mockMailer": false
 }
