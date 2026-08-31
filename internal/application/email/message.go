@@ -23,6 +23,7 @@ type CeneoCatcher struct {
 	ProductPrice   string
 	ProductCompany string
 	ProductURL     string
+	RecipientEmail string
 }
 
 type CeneoCatcherTmplData struct {

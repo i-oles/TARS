@@ -30,11 +30,12 @@ const (
 )
 
 type CeneoCatcherConfig struct {
-	ProductID int `json:"product_id"`
-	MaxPrice  int `json:"max_price"`
+	ProductID      int     `json:"product_id"`
+	MaxPrice       float32 `json:"max_price"`
+	RecipientEmail string  `json:"recipient_email"`
 }
 
 type DoctorReminderConfig struct {
-	ReferenceID    string
-	RecipientEmail string
+	ReferenceID    string `json:"reference_id"`
+	RecipientEmail string `json:"recipient_email"`
 }
