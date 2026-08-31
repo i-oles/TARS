@@ -160,14 +160,12 @@ func (t *CeneoCatcherTaskRunner) getLowestPriceProduct(
 	}
 
 	if lowestPrice <= float64(maxPrice) {
-		slog.Info("ceneo_catcher - found desired price", "price", lowestPrice)
+		slog.Info("ceneo_catcher - found desired price", "max_price", maxPrice, "price", lowestPrice)
 
 		return &productWithLowestPrice, nil
 	}
 
-	slog.Info(
-		"ceneo_catcher - prices are too high", "max_price", maxPrice, "lowest", lowestPrice,
-	)
+	slog.Info("ceneo_catcher - prices are too high", "max_price", maxPrice, "lowest", lowestPrice)
 
 	return nil, nil
 }
