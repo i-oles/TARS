@@ -61,6 +61,7 @@ func (t *CeneoCatcherTaskRunner) Run(ctx context.Context, taskID int, config []b
 		ProductPrice:   product.Price,
 		ProductCompany: product.Company,
 		ProductURL:     product.URL,
+		RecipientEmail: cfg.RecipientEmail,
 	}
 
 	msg, err := t.emailComposer.ComposeForCeneoCatcher(data)
@@ -73,12 +74,31 @@ func (t *CeneoCatcherTaskRunner) Run(ctx context.Context, taskID int, config []b
 		return fmt.Errorf("could not send msg - %v: %w", msg, err)
 	}
 
-	_, err = t.tasksRepo.Update(ctx, taskID, map[string]any{"last_run_at": time.Now()})
+	newConfig, err := buildConfigWithReducedMaxPrice(cfg)
+	if err != nil {
+		return fmt.Errorf("could build config with reduced max price: %w", err)
+	}
+
+	_, err = t.tasksRepo.Update(ctx, taskID, map[string]any{
+		"last_run_at": time.Now(),
+		"config":      newConfig,
+	})
 	if err != nil {
 		return fmt.Errorf("could not update task: %w", err)
 	}
 
 	return nil
+}
+
+func buildConfigWithReducedMaxPrice(cfg models.CeneoCatcherConfig) ([]byte, error) {
+	cfg.MaxPrice *= 0.95
+
+	result, err := json.Marshal(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("could not update task: %w", err)
+	}
+
+	return result, nil
 }
 
 type Product struct {
@@ -89,7 +109,7 @@ type Product struct {
 }
 
 func (t *CeneoCatcherTaskRunner) getLowestPriceProduct(
-	ctx context.Context, domain string, productID, maxPrice int,
+	ctx context.Context, domain string, productID int, maxPrice float32,
 ) (*Product, error) {
 	targetURL := fmt.Sprintf("%s/%d", domain, productID)
 
@@ -140,12 +160,12 @@ func (t *CeneoCatcherTaskRunner) getLowestPriceProduct(
 	}
 
 	if lowestPrice <= float64(maxPrice) {
-		slog.Info("ceneo_catcher - found desired price", "price", lowestPrice)
+		slog.Info("ceneo_catcher - found desired price", "max_price", maxPrice, "price", lowestPrice)
 
 		return &productWithLowestPrice, nil
 	}
 
-	slog.Info("ceneo_catcher - prices are too high", "lowest", lowestPrice)
+	slog.Info("ceneo_catcher - prices are too high", "max_price", maxPrice, "lowest", lowestPrice)
 
 	return nil, nil
 }

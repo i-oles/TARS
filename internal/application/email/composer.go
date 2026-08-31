@@ -67,7 +67,7 @@ func (n *Composer) ComposeForCeneoCatcher(data CeneoCatcher) (Message, error) {
 		return Message{}, fmt.Errorf("could not parse template: %w", err)
 	}
 
-	msg, err := n.buildCeneoCatcherMsg(tmpl, tmplData, subject)
+	msg, err := n.buildCeneoCatcherMsg(tmpl, tmplData, subject, data.RecipientEmail)
 	if err != nil {
 		return Message{},
 			fmt.Errorf("could not build msg for ceneo catcher with data %v: %w", tmplData, err)
@@ -104,7 +104,8 @@ func (n *Composer) buildDoctorReminderMsg(
 func (n *Composer) buildCeneoCatcherMsg(
 	tmpl *template.Template,
 	data CeneoCatcherTmplData,
-	subject string,
+	subject,
+	recipientEmail string,
 ) (Message, error) {
 	var body strings.Builder
 
@@ -115,7 +116,7 @@ func (n *Composer) buildCeneoCatcherMsg(
 
 	return Message{
 		From:    n.ownerEmail,
-		To:      n.ownerEmail,
+		To:      recipientEmail,
 		Subject: subject,
 		Body:    body.String(),
 	}, nil
