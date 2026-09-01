@@ -41,6 +41,13 @@ func NewTaskRunner(
 }
 
 func (t *CeneoCatcherTaskRunner) Run(ctx context.Context, taskID int, config []byte) error {
+	_, err := t.tasksRepo.Update(ctx, taskID, map[string]any{
+		"last_run_at": time.Now(),
+	})
+	if err != nil {
+		return fmt.Errorf("could not update task: %w", err)
+	}
+
 	var cfg models.CeneoCatcherConfig
 
 	if err := json.Unmarshal(config, &cfg); err != nil {
@@ -80,8 +87,7 @@ func (t *CeneoCatcherTaskRunner) Run(ctx context.Context, taskID int, config []b
 	}
 
 	_, err = t.tasksRepo.Update(ctx, taskID, map[string]any{
-		"last_run_at": time.Now(),
-		"config":      newConfig,
+		"config": newConfig,
 	})
 	if err != nil {
 		return fmt.Errorf("could not update task: %w", err)
