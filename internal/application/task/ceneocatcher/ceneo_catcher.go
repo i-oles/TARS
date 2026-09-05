@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"main/internal/application"
 	"main/internal/application/email"
 	"main/internal/domain/contracts"
 	"main/internal/domain/models"
@@ -20,16 +21,20 @@ import (
 
 type CeneoCatcherTaskRunner struct {
 	emailComposer   email.Composer
-	mailer          email.IMailer
+	mailer          application.IMailer
 	tasksRepo       contracts.ITasks
 	ceneoDomain     string
 	ceneoProductTag string
+	senderEmail     string
+	senderSignature string
 }
 
 func NewTaskRunner(
 	emailComposer email.Composer,
-	mailer email.IMailer,
+	mailer application.IMailer,
 	tasksRepo contracts.ITasks,
+	senderEmail string,
+	senderSignature string,
 ) *CeneoCatcherTaskRunner {
 	return &CeneoCatcherTaskRunner{
 		emailComposer:   emailComposer,
@@ -37,10 +42,19 @@ func NewTaskRunner(
 		tasksRepo:       tasksRepo,
 		ceneoDomain:     "https://ceneo.pl",
 		ceneoProductTag: ".product-offer__container",
+		senderEmail:     senderEmail,
+		senderSignature: senderSignature,
 	}
 }
 
 func (t *CeneoCatcherTaskRunner) Run(ctx context.Context, taskID int, config []byte) error {
+	_, err := t.tasksRepo.Update(ctx, taskID, map[string]any{
+		"last_run_at": time.Now(),
+	})
+	if err != nil {
+		return fmt.Errorf("could not update task: %w", err)
+	}
+
 	var cfg models.CeneoCatcherConfig
 
 	if err := json.Unmarshal(config, &cfg); err != nil {
@@ -57,11 +71,13 @@ func (t *CeneoCatcherTaskRunner) Run(ctx context.Context, taskID int, config []b
 	}
 
 	data := email.CeneoCatcher{
-		ProductName:    product.Name,
-		ProductPrice:   product.Price,
-		ProductCompany: product.Company,
-		ProductURL:     product.URL,
-		RecipientEmail: cfg.RecipientEmail,
+		ProductName:     product.Name,
+		ProductPrice:    product.Price,
+		ProductCompany:  product.Company,
+		ProductURL:      product.URL,
+		RecipientEmail:  cfg.RecipientEmail,
+		SenderEmail:     t.senderEmail,
+		SenderSignature: t.senderSignature,
 	}
 
 	msg, err := t.emailComposer.ComposeForCeneoCatcher(data)
@@ -80,8 +96,7 @@ func (t *CeneoCatcherTaskRunner) Run(ctx context.Context, taskID int, config []b
 	}
 
 	_, err = t.tasksRepo.Update(ctx, taskID, map[string]any{
-		"last_run_at": time.Now(),
-		"config":      newConfig,
+		"config": newConfig,
 	})
 	if err != nil {
 		return fmt.Errorf("could not update task: %w", err)

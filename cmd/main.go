@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"main/internal/application"
 	"main/internal/application/email"
 	"main/internal/application/scheduler"
 	"main/internal/application/task/ceneocatcher"
@@ -35,7 +36,8 @@ import (
 type Components struct {
 	tasksRepo           contracts.ITasks
 	emailComposer       email.Composer
-	mailer              email.IMailer
+	ownerMailer         application.IMailer
+	tarsMailer          application.IMailer
 	errHandler          errs.IErrorHandler
 	memoryMailerStorage *memory.Storage
 	database            *gorm.DB
@@ -60,14 +62,18 @@ func main() {
 	go func() {
 		doctorReminderTaskRunner := doctorreminder.NewTaskRunner(
 			components.emailComposer,
-			components.mailer,
+			components.ownerMailer,
 			components.tasksRepo,
+			cfg.Mailers.Owner.Login,
+			cfg.Mailers.Owner.Signature,
 		)
 
 		ceneoCatcherTaskRunner := ceneocatcher.NewTaskRunner(
 			components.emailComposer,
-			components.mailer,
+			components.tarsMailer,
 			components.tasksRepo,
+			cfg.Mailers.Tars.Login,
+			cfg.Mailers.Tars.Signature,
 		)
 
 		scheduler := scheduler.New(
@@ -133,38 +139,44 @@ func buildComponents(cfg *configuration.Configuration) (Components, error) {
 		return Components{}, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
-	var mailer email.IMailer
-
-	mailer = gmail.NewMailer(
-		cfg.Mailer.Host,
-		cfg.Mailer.Port,
-		cfg.Mailer.Login,
-		cfg.Mailer.Password,
-	)
-
 	memoryMailerStorage := memory.Storage{
 		Views: make([]string, 0),
 	}
 
+	var ownerMailer application.IMailer
+
+	var tarsMailer application.IMailer
+
+	ownerMailer = gmail.NewMailer(
+		cfg.Mailers.Host,
+		cfg.Mailers.Port,
+		cfg.Mailers.Owner.Login,
+		cfg.Mailers.Owner.Password,
+	)
+
+	tarsMailer = gmail.NewMailer(
+		cfg.Mailers.Host,
+		cfg.Mailers.Port,
+		cfg.Mailers.Tars.Login,
+		cfg.Mailers.Tars.Password,
+	)
+
 	if cfg.MockMailer {
-		mailer = memory.NewMailer(&memoryMailerStorage)
+		ownerMailer = memory.NewMailer(&memoryMailerStorage)
+		tarsMailer = memory.NewMailer(&memoryMailerStorage)
 	}
 
 	tasksRepo := sqliteRepo.NewTasksRepo(database)
 
-	emailComposer := email.NewComposer(
-		mailer,
-		cfg.Mailer.Login,
-		cfg.Mailer.Signature,
-		cfg.BaseEmailTmplPath,
-	)
+	emailComposer := email.NewComposer(cfg.BaseEmailTmplPath)
 
 	errHandler := errs.NewErrorHandler()
 
 	return Components{
 		tasksRepo:           tasksRepo,
 		emailComposer:       *emailComposer,
-		mailer:              mailer,
+		ownerMailer:         ownerMailer,
+		tarsMailer:          tarsMailer,
 		database:            database,
 		memoryMailerStorage: &memoryMailerStorage,
 		errHandler:          errHandler,
