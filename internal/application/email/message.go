@@ -8,9 +8,11 @@ type Message struct {
 }
 
 type DoctorReminder struct {
-	Subject        string
-	Content        string
-	RecipientEmail string
+	Subject         string
+	Content         string
+	RecipientEmail  string
+	SenderEmail     string
+	SenderSignature string
 }
 
 type DoctorReminderTmplData struct {
@@ -19,13 +21,16 @@ type DoctorReminderTmplData struct {
 }
 
 type CeneoCatcher struct {
-	ProductName    string
-	ProductPrice   string
-	ProductCompany string
-	ProductURL     string
-	RecipientEmail string
+	ProductName     string
+	ProductPrice    string
+	ProductCompany  string
+	ProductURL      string
+	RecipientEmail  string
+	SenderEmail     string
+	SenderSignature string
 }
 
 type CeneoCatcherTmplData struct {
-	Content string
+	Content   string
+	Signature string
 }

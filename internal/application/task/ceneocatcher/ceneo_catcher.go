@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"main/internal/application"
 	"main/internal/application/email"
 	"main/internal/domain/contracts"
 	"main/internal/domain/models"
@@ -20,16 +21,20 @@ import (
 
 type CeneoCatcherTaskRunner struct {
 	emailComposer   email.Composer
-	mailer          email.IMailer
+	mailer          application.IMailer
 	tasksRepo       contracts.ITasks
 	ceneoDomain     string
 	ceneoProductTag string
+	senderEmail     string
+	senderSignature string
 }
 
 func NewTaskRunner(
 	emailComposer email.Composer,
-	mailer email.IMailer,
+	mailer application.IMailer,
 	tasksRepo contracts.ITasks,
+	senderEmail string,
+	senderSignature string,
 ) *CeneoCatcherTaskRunner {
 	return &CeneoCatcherTaskRunner{
 		emailComposer:   emailComposer,
@@ -37,6 +42,8 @@ func NewTaskRunner(
 		tasksRepo:       tasksRepo,
 		ceneoDomain:     "https://ceneo.pl",
 		ceneoProductTag: ".product-offer__container",
+		senderEmail:     senderEmail,
+		senderSignature: senderSignature,
 	}
 }
 
@@ -64,11 +71,13 @@ func (t *CeneoCatcherTaskRunner) Run(ctx context.Context, taskID int, config []b
 	}
 
 	data := email.CeneoCatcher{
-		ProductName:    product.Name,
-		ProductPrice:   product.Price,
-		ProductCompany: product.Company,
-		ProductURL:     product.URL,
-		RecipientEmail: cfg.RecipientEmail,
+		ProductName:     product.Name,
+		ProductPrice:    product.Price,
+		ProductCompany:  product.Company,
+		ProductURL:      product.URL,
+		RecipientEmail:  cfg.RecipientEmail,
+		SenderEmail:     t.senderEmail,
+		SenderSignature: t.senderSignature,
 	}
 
 	msg, err := t.emailComposer.ComposeForCeneoCatcher(data)

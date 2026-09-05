@@ -34,11 +34,16 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 }
 
 type Mailer struct {
-	Host      string
-	Port      int
 	Login     string
 	Password  string
 	Signature string
+}
+
+type Mailers struct {
+	Host  string
+	Port  int
+	Owner Mailer
+	Tars  Mailer
 }
 
 type Scheduler struct {
@@ -54,7 +59,7 @@ type Configuration struct {
 	AuthSecret        string
 	LogBusinessErrors bool
 	LogConfig         bool
-	Mailer            Mailer
+	Mailers           Mailers
 	Scheduler         Scheduler
 	DomainAddr        string
 	BaseEmailTmplPath string
@@ -86,21 +91,34 @@ func GetConfig(cfgPath string) (*Configuration, error) {
 
 	loadEnvs(cfg)
 
-	if cfg.Mailer.Login == "" || cfg.Mailer.Password == "" {
+	if cfg.Mailers.Owner.Login == "" || cfg.Mailers.Owner.Password == "" {
 		return nil,
-			errors.New("provide envs for sender")
+			errors.New("provide envs for owner mailer")
+	}
+
+	if cfg.Mailers.Tars.Login == "" || cfg.Mailers.Tars.Password == "" {
+		return nil,
+			errors.New("provide envs for tars mailer")
 	}
 
 	return cfg, nil
 }
 
 func loadEnvs(cfg *Configuration) {
-	if login := os.Getenv("SENDER_LOGIN"); login != "" {
-		cfg.Mailer.Login = login
+	if login := os.Getenv("OWNER_MAILER_LOGIN"); login != "" {
+		cfg.Mailers.Owner.Login = login
 	}
 
-	if password := os.Getenv("SENDER_PASSWORD"); password != "" {
-		cfg.Mailer.Password = password
+	if password := os.Getenv("OWNER_MAILER_PASSWORD"); password != "" {
+		cfg.Mailers.Owner.Password = password
+	}
+
+	if login := os.Getenv("TARS_MAILER_LOGIN"); login != "" {
+		cfg.Mailers.Tars.Login = login
+	}
+
+	if password := os.Getenv("TARS_MAILER_PASSWORD"); password != "" {
+		cfg.Mailers.Tars.Password = password
 	}
 
 	if authSecret := os.Getenv("AUTH_SECRET"); authSecret != "" {

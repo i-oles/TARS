@@ -8,33 +8,40 @@ import (
 	"math/rand"
 	"time"
 
+	"main/internal/application"
 	"main/internal/application/email"
 	"main/internal/domain/contracts"
 	"main/internal/domain/models"
 )
 
 type DoctorReminderTaskRunner struct {
-	emailComposer email.Composer
-	mailer        email.IMailer
-	tasksRepo     contracts.ITasks
+	emailComposer   email.Composer
+	mailer          application.IMailer
+	tasksRepo       contracts.ITasks
+	senderEmail     string
+	senderSignature string
 }
 
 func NewTaskRunner(
 	emailComposer email.Composer,
-	mailer email.IMailer,
+	mailer application.IMailer,
 	tasksRepo contracts.ITasks,
+	senderEmail string,
+	senderSignature string,
 ) *DoctorReminderTaskRunner {
 	return &DoctorReminderTaskRunner{
-		emailComposer: emailComposer,
-		mailer:        mailer,
-		tasksRepo:     tasksRepo,
+		emailComposer:   emailComposer,
+		mailer:          mailer,
+		tasksRepo:       tasksRepo,
+		senderEmail:     senderEmail,
+		senderSignature: senderSignature,
 	}
 }
 
-func (t *DoctorReminderTaskRunner) Run(ctx context.Context, taskID int, config []byte) error {
+func (t *DoctorReminderTaskRunner) Run(ctx context.Context, taskID int, taskConfig []byte) error {
 	var cfg models.DoctorReminderConfig
 
-	if err := json.Unmarshal(config, &cfg); err != nil {
+	if err := json.Unmarshal(taskConfig, &cfg); err != nil {
 		return fmt.Errorf("invalid doctor reminder config: %w", err)
 	}
 
@@ -44,9 +51,11 @@ func (t *DoctorReminderTaskRunner) Run(ctx context.Context, taskID int, config [
 	}
 
 	data := email.DoctorReminder{
-		Subject:        subject,
-		Content:        content,
-		RecipientEmail: cfg.RecipientEmail,
+		Subject:         subject,
+		Content:         content,
+		RecipientEmail:  cfg.RecipientEmail,
+		SenderEmail:     t.senderEmail,
+		SenderSignature: t.senderSignature,
 	}
 
 	msg, err := t.emailComposer.ComposeForDoctorReminder(data)

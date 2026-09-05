@@ -10,3 +10,8 @@ services:
     ports:
       - "8080:8080"
     restart: on-failure
+    volumes:
+      - tars-data:/data
+
+volumes:
+  tars-data:
