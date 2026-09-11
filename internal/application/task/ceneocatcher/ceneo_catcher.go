@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -23,6 +24,7 @@ type CeneoCatcherTaskRunner struct {
 	emailComposer   email.Composer
 	mailer          application.IMailer
 	tasksRepo       contracts.ITasks
+	httpClient      *http.Client
 	ceneoDomain     string
 	ceneoProductTag string
 	senderEmail     string
@@ -40,6 +42,7 @@ func NewTaskRunner(
 		emailComposer:   emailComposer,
 		mailer:          mailer,
 		tasksRepo:       tasksRepo,
+		httpClient:      &http.Client{Timeout: 10 * time.Second},
 		ceneoDomain:     "https://ceneo.pl",
 		ceneoProductTag: ".product-offer__container",
 		senderEmail:     senderEmail,
@@ -128,61 +131,92 @@ func (t *CeneoCatcherTaskRunner) getLowestPriceProduct(
 ) (*Product, error) {
 	targetURL := fmt.Sprintf("%s/%d", domain, productID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
+	doc, err := t.fetchProductsDoc(ctx, targetURL)
 	if err != nil {
-		return nil, fmt.Errorf("could not get domain %s: %w", domain, err)
-	}
-
-	client := &http.Client{Timeout: 10 * time.Second}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("could make request %v: %w", req, err)
-	}
-
-	defer resp.Body.Close()
-
-	doc, err := goquery.NewDocumentFromReader(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("could read response body: %w", err)
+		return nil, err
 	}
 
 	baseURL, _ := url.Parse(domain)
 
 	products := t.findProducts(doc, baseURL)
 
+	return findCheapestProduct(products, maxPrice)
+}
+
+func (t *CeneoCatcherTaskRunner) fetchProductsDoc(
+	ctx context.Context, targetURL string,
+) (*goquery.Document, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("could not build request for %s: %w", targetURL, err)
+	}
+
+	resp, err := t.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("could not make request to %s: %w", targetURL, err)
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code %d for %s", resp.StatusCode, targetURL)
+	}
+
+	doc, err := goquery.NewDocumentFromReader(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("could not read response body: %w", err)
+	}
+
+	return doc, nil
+}
+
+func findCheapestProduct(products []Product, maxPrice float32) (*Product, error) {
 	if len(products) == 0 {
+		slog.Warn("ceneo_catcher - no products found, something might have changed on the ceneo.pl")
+
 		return nil, nil
 	}
 
-	var lowestPrice float64
+	lowestPrice := math.Inf(1)
 
-	var productWithLowestPrice Product
+	var cheapest Product
 
 	for _, product := range products {
-		price, err := strconv.ParseFloat(
-			strings.ReplaceAll(
-				strings.ReplaceAll(product.Price, " ", ""), ",", "."), 64,
-		)
+		price, err := parsePrice(product.Price)
 		if err != nil {
-			return nil, fmt.Errorf("could parse string to float: %w", err)
+			return nil, fmt.Errorf("could not parse price %q: %w", product.Price, err)
 		}
 
-		if lowestPrice == 0 || price < lowestPrice {
+		if price < lowestPrice {
 			lowestPrice = price
-			productWithLowestPrice = product
+			cheapest = product
 		}
 	}
 
-	if lowestPrice <= float64(maxPrice) {
-		slog.Info("ceneo_catcher - found desired price", "max_price", maxPrice, "price", lowestPrice)
+	if lowestPrice > float64(maxPrice) {
+		slog.Info("ceneo_catcher - prices are too high",
+			"product", cheapest.Name, "max_price", maxPrice, "lowest", lowestPrice,
+		)
 
-		return &productWithLowestPrice, nil
+		return nil, nil
 	}
 
-	slog.Info("ceneo_catcher - prices are too high", "max_price", maxPrice, "lowest", lowestPrice)
+	slog.Info("ceneo_catcher - found desired price",
+		"product", cheapest.Name, "max_price", maxPrice, "price", lowestPrice,
+	)
 
-	return nil, nil
+	return &cheapest, nil
+}
+
+func parsePrice(raw string) (float64, error) {
+	normalized := strings.ReplaceAll(strings.ReplaceAll(raw, " ", ""), ",", ".")
+
+	price, err := strconv.ParseFloat(normalized, 64)
+	if err != nil {
+		return 0, fmt.Errorf("could not parse float: %w", err)
+	}
+
+	return price, nil
 }
 
 func (t *CeneoCatcherTaskRunner) findProducts(doc *goquery.Document, baseURL *url.URL) []Product {
